@@ -1,0 +1,351 @@
+import json
+import time
+import keyboard
+import ahk
+import sys
+import threading
+import os
+
+ahk_script = ahk.AHK()
+
+# Global flag for current song playback
+playing_song = False
+# Flag to indicate if Alt was pressed to stop current song
+stop_current_song = False
+
+
+# Function to check for stop key in background
+def check_stop_thread():
+    global playing_song, stop_current_song
+    while True:
+        if keyboard.is_pressed('esc') and playing_song:
+            print("\nStopping playback and returning to song selection...")
+            stop_current_song = True
+            # Release all keys that might be held
+            for key in keys.values():
+                ahk_script.key_up(key)
+            time.sleep(0.5)  # Prevent multiple triggers
+        time.sleep(0.1)
+
+
+# Start the stop checker thread
+stop_thread = threading.Thread(target=check_stop_thread, daemon=True)
+stop_thread.start()
+
+
+# Function to load songs from text files
+def load_songs_from_folder(folder_path="D:\\SkySongs"):
+    songs = []
+
+    # Create the songs folder if it doesn't exist
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+        print(f"Created songs folder at: {os.path.abspath(folder_path)}")
+        print("Please add song text files to this folder.")
+        return songs
+
+    # List of encodings to try
+    encodings = ['utf-16', 'utf-8', 'utf-8-sig', 'utf-16le', 'utf-16be', 'latin1']
+
+    # Load all .txt files from the folder
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(folder_path, filename)
+            success = False
+
+            # Try each encoding until one works
+            for encoding in encodings:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as file:
+                        content = file.read()
+                        # Try to parse the content as JSON
+                        song_data = json.loads(content)
+
+                        # Check if the loaded data is a list/array
+                        if isinstance(song_data, list) and len(song_data) > 0:
+                            # If it's an array, get the first item
+                            song = song_data[0]
+                            songs.append(song)
+                        else:
+                            # If it's not an array, assume it's a single song object
+                            songs.append(song_data)
+
+                        success = True
+                        break  # Exit the encoding loop if successful
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue  # Try the next encoding
+                except Exception as e:
+                    print(f"Error reading file '{filename}' with {encoding} encoding: {str(e)}")
+
+            if not success:
+                print(f"Could not read file '{filename}' with any of the attempted encodings")
+
+    return songs
+
+
+# Load songs from the songs folder
+songs = load_songs_from_folder()
+
+# Mapping of keys to keyboard keys
+keys = {
+    "1Key0": "t",
+    "1Key1": "y",
+    "1Key2": "u",
+    "1Key3": "i",
+    "1Key4": "o",
+    "1Key5": "p",
+    "1Key6": "a",
+    "1Key7": "s",
+    "1Key8": "d",
+    "1Key9": "f",
+    "1Key10": "g",
+    "1Key11": "h",
+    "1Key12": "j",
+    "1Key13": "k",
+    "1Key14": "l",
+
+    "Key0": "t",
+    "Key1": "y",
+    "Key2": "u",
+    "Key3": "i",
+    "Key4": "o",
+    "Key5": "p",
+    "Key6": "a",
+    "Key7": "s",
+    "Key8": "d",
+    "Key9": "f",
+    "Key10": "g",
+    "Key11": "h",
+    "Key12": "j",
+    "Key13": "k",
+    "Key14": "l",
+
+    "2Key0": "t",
+    "2Key1": "y",
+    "2Key2": "u",
+    "2Key3": "i",
+    "2Key4": "o",
+    "2Key5": "p",
+    "2Key6": "a",
+    "2Key7": "s",
+    "2Key8": "d",
+    "2Key9": "f",
+    "2Key10": "g",
+    "2Key11": "h",
+    "2Key12": "j",
+    "2Key13": "k",
+    "2Key14": "l",
+}
+
+# Set the hold duration for key presses (in seconds)
+key_hold_duration = 0.1
+
+while True:
+    stop_current_song = False  # Reset the stop flag at the start of song selection
+
+    print("")
+    print("Song lists:")
+    # Display songs in a wrapped format
+    line_width = 0
+    line_max_width = 60  # Maximum width before wrapping
+
+    for i, song in enumerate(songs):
+        # Get the song name directly from the song data
+        song_name = song["name"] if "name" in song else "Unknown Song"
+        song_text = f"{i + 1}. {song_name}"
+
+        # If adding this song would exceed line width, start a new line
+        if line_width + len(song_text) + 2 > line_max_width and line_width > 0:
+            print()
+            line_width = 0
+
+        # Print the song with proper formatting
+        if line_width == 0:
+            print(f"  {song_text}", end="")
+            line_width = len(song_text) + 2
+        else:
+            print(f", {song_text}", end="")
+            line_width += len(song_text) + 2
+
+    print("\n")
+    print("Press 'Ecs' during playback to return to song selection")
+
+
+    def select_song(songs):
+        while True:
+            # Ask the user for the name or number of the song to play
+            song_input = input("Enter the name or number of the song to play: ")
+
+            # Check if the input is a number
+            if song_input.isdigit():
+                song_number = int(song_input)
+                # Check if the number is within range
+                if 1 <= song_number <= len(songs):
+                    # Find songs with matching names
+                    matching_songs = [song for song in songs if str(song_number) in song["name"]]
+                    if not matching_songs:
+                        return songs[song_number - 1]
+                    else:
+                        # If there are multiple matching songs, display a list and ask for selection
+                        print(f"Multiple songs found with '{song_number}' in their name:")
+                        for i, song in enumerate(matching_songs, 1):
+                            print(f"{i}. {song['name']}")
+                        selection = input(
+                            f"Do you want to choose one of these songs (Y) or play the {song_number}th song in the list (T): ")
+                        if selection.lower() == 'y':
+                            selection = int(input("Enter the number of the song to play: "))
+                            if 1 <= selection <= len(matching_songs):
+                                return matching_songs[selection - 1]
+                            else:
+                                print(f"Invalid selection '{selection}'")
+                        elif selection.lower() == 't':
+                            return songs[song_number - 1]
+                        else:
+                            print(f"Invalid selection '{selection}'")
+                else:
+                    print(f"No song found with number '{song_number}'")
+            else:
+                # Find songs with matching names
+                matching_songs = [song for song in songs if song_input.lower() in song["name"].lower()]
+                if not matching_songs:
+                    print(f"No songs found with name containing '{song_input}'")
+                elif len(matching_songs) == 1:
+                    # If there is only one matching song, ask for confirmation
+                    song = matching_songs[0]
+                    confirm = input(f"Do you want to play '{song['name']}'? (Y/N) ")
+                    if confirm.lower() == 'y':
+                        return song
+                else:
+                    # If there are multiple matching songs, display a list and ask for selection
+                    print("Multiple songs found:")
+                    for i, song in enumerate(matching_songs, 1):
+                        print(f"{i}. {song['name']}")
+                    selection = int(input("Enter the number of the song to play: "))
+                    if 1 <= selection <= len(matching_songs):
+                        return matching_songs[selection - 1]
+                    else:
+                        print(f"Invalid selection '{selection}'")
+
+
+    # Select a song
+    song = select_song(songs)
+
+    # Play the selected song
+    # The song data is directly in the song object, not in a 'data' field
+    data = [song]  # Wrap the song in a list to match the expected format
+
+    # Ask the user for the speed factor
+    speed_factor = float(input("Enter the speed factor: "))
+    start_time = time.time()
+    paused_time = 0
+    playing = True
+    playing_song = True  # Set the playing flag before song starts
+    for song in data:
+        print("Song name:", song.get("name", None))
+        print("Author:", song.get("author", None))
+        print("Transcribed by:", song.get("transcribedBy", None))
+        print("BPM:", song.get("bpm", None))
+        print("Pitch level:", song.get("pitchLevel", None))
+
+        # Calculate the duration of the song in milliseconds
+        song_duration = max(note["time"] for note in song["songNotes"])
+
+        # Convert the duration of the song to minutes and seconds
+        song_duration_minutes, song_duration_seconds = divmod(song_duration / 1000, 60)
+
+        # Display the duration of the song in minutes and seconds
+        print(f"Song duration: {int(song_duration_minutes)}m {int(song_duration_seconds)}s")
+
+        # Ask the user for the starting position of the song in minutes and seconds
+        start_position_input = input(
+            f"Enter the starting position of the song (e.g. '3m 15s' for 3 minutes and 15 seconds, or '0' for the first second of the song): ")
+
+        time.sleep(3)
+        playing = True
+        if start_position_input.strip() == '0':
+            start_position = 0
+        else:
+            # Parse the starting position from the user's input
+            start_position_minutes = int(start_position_input.split('m')[0].strip())
+            start_position_seconds = int(start_position_input.split('m')[1].split('s')[0].strip())
+
+            # Convert the starting position to milliseconds
+            start_position = (start_position_minutes * 60 + start_position_seconds) * 1000
+
+        # Skip notes that are before the starting position
+        song["songNotes"] = [note for note in song["songNotes"] if note["time"] >= start_position]
+
+        # Start a timer to keep track of elapsed time since starting position
+        start_timer = time.time() - (start_position / (1000 * speed_factor))
+
+        # Group notes by time
+        notes_by_time = {}
+        for note in song["songNotes"]:
+            if note["time"] not in notes_by_time:
+                notes_by_time[note["time"]] = []
+            notes_by_time[note["time"]].append(note)
+
+        # Track active notes and their release times
+        active_notes = {}
+
+        for note_time, notes in notes_by_time.items():
+            # Check if stop was requested
+            if stop_current_song:
+                break
+
+            # Check if elapsed time since starting position is greater than or equal to note time
+            while (time.time() - start_timer - paused_time) * 1000 * speed_factor < note_time:
+                # Check if stop was requested
+                if stop_current_song:
+                    break
+
+                # Check if spacebar is pressed to pause/unpause playback
+                if keyboard.is_pressed('space'):
+                    playing = not playing
+                    print(f"{'Paused' if not playing else 'Playing'}")
+                    pause_start_time = time.time()
+                    time.sleep(0.2)
+
+                # If playback is paused, wait until unpaused before continuing
+                while not playing:
+                    time.sleep(0.2)
+                    if keyboard.is_pressed('space'):
+                        playing = not playing
+                        paused_time += time.time() - pause_start_time
+                        print(f"{'Paused' if not playing else 'Playing'}")
+                        time.sleep(0.2)
+
+                # Release any keys that have reached their release time
+                current_time = (time.time() - start_timer - paused_time) * 1000 * speed_factor
+                keys_to_release = []
+                for key, release_time in active_notes.items():
+                    if current_time >= release_time:
+                        ahk_script.key_up(key)
+                        keys_to_release.append(key)
+
+                # Remove released keys from active_notes
+                for key in keys_to_release:
+                    active_notes.pop(key)
+
+                # Display the current second playing in the song while it's playing
+                current_duration = current_time - start_position
+                current_duration_minutes, current_duration_seconds = divmod(current_duration / 1000, 60)
+                print(f"\rCurrent second: {int(current_duration_minutes)}m {int(current_duration_seconds)}s", end="")
+
+                # Short sleep to prevent CPU overload
+                time.sleep(0.01)
+
+            # Press all notes at current time and schedule their release
+            for note in notes:
+                key = keys.get(note["key"], note["key"])
+                ahk_script.key_down(key)
+                # Calculate release time (current note time + hold duration in ms)
+                release_time = note_time + (key_hold_duration * 1000 / speed_factor)
+                active_notes[key] = release_time
+
+        # Make sure to release any remaining keys at the end of the song
+        for key in active_notes:
+            ahk_script.key_up(key)
+    # Print a newline character after the song finishes playing to move to the next line
+    print()
+    playing_song = False  # Reset the playing flag when song ends
