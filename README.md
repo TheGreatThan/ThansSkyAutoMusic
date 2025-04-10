@@ -105,3 +105,8 @@ The script expects song files to be plain text (`.txt`) files containing data in
     { "time": 2000, "key": "1Key7" }
   ]
 }
+```
+
+## For The Nerds 🤓👆
+
+Here fully explain whats going on: https://thegreatthan.github.io/Explain
